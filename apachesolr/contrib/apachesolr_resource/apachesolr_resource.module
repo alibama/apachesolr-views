@@ -1,0 +1,54 @@
+<?php
+
+/**
+ * Implementation of hook_apachesolr_update_index().
+ */
+function apachesolr_resource_apachesolr_update_index(&$document, $node, $namespace) {
+  if ($node->type == 'resource' && $document->entity == 'node') {
+    $node = node_load(array('nid'=> $node->nid));
+    $document->addField('tm_field_url', $node->url); //tm_ is the prefix for adding searchable text fields
+    }   
+}
+  
+
+
+/**
+ * Implementation of hook_apachesolr_modify_query().
+ */
+function apachesolr_resource_apachesolr_modify_query(&$query, &$params, $caller) {
+  // retrieve the resource field url and make it accessible in the query.
+  $params['fl'] .= ',tm_field_url';
+}
+
+/**
+ * Implementation of hook_apachesolr_process_results().
+ */
+function apachesolr_resource_apachesolr_process_results(&$results) {
+  foreach ($results as $index => $item) {
+    if ($item['node']->type == 'resource' && !empty($item['node']->tm_field_url)) {
+      $results[$index]['snippet'] = theme('apachesolr_resource_snippet', $item);
+    }
+  }
+}
+
+function theme_apachesolr_resource_snippet($item) {
+  return '<span class="apachesolr-resource-result">'. theme('resource', $item['node']->tm_field_url, $item['title'], $item['title'], array('align' => 'left')) .'</span>'. $item['snippet'] . '<br clear="all"/>';
+}
+
+/**
+ * Implementation of hook_theme().
+ */
+function apachesolr_resource_theme() {
+  return array(
+    'apachesolr_resource_snippet' => array(
+      'arguments' => array('item' => NULL),
+    ),
+  );
+}
+
+/**
+ * Implementation of hook_enable().
+ */
+function apachesolr_resource_enable() {
+  drupal_set_message(t('The Apache Solr resource integration module will not have any apparent effect until resource type nodes are indexed or re-indexed.'));
+}

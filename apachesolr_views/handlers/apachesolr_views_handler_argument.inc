@@ -24,6 +24,7 @@ class apachesolr_views_handler_argument extends views_handler_argument {
   function option_definition() {
     $options = parent::option_definition();
     $options['break_phrase'] = array('default' => FALSE);
+    $options['facet_block'] = array('default' => TRUE);
     $options['not'] = array('default' => FALSE);
 
     return $options;
@@ -38,6 +39,18 @@ class apachesolr_views_handler_argument extends views_handler_argument {
       '#title' => t('Allow multiple terms per argument.'),
       '#description' => t('If selected, users can enter multiple arguments in the form of 1,2,3.'),
       '#default_value' => !empty($this->options['break_phrase']),
+    );
+
+    // Make it possible to exclude an argument from being populated with values
+    // from facet blocks, e.g. if this argument is passed as part of the menu
+    // link or by other means and you still want to be able to use facet blocks
+    // of the same field without losing the menu link.
+    // @see apachesolr_views_query->part_of_facet_block().
+    $form['facet_block'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Allow this argument to be populated from facet blocks.'),
+      '#description' => t('If unchecked, this argument will not be populated with values from Apachesolr facet block but only with values that come directly from the URL.'),
+      '#default_value' => !empty($this->options['facet_block']),
     );
 
     $form['not'] = array(

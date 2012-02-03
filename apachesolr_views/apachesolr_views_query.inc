@@ -609,21 +609,47 @@ class apachesolr_views_query extends views_plugin_query implements Drupal_Solr_Q
     if (empty($this->_view_arguments)) {
       return $this->_base_path;
     }
+
+    // Create a copy of the facets that are set for the query.
+    $facets = $this->_facets;
+    // Iterate through the view arguments and populate them with either a facet
+    // value, the value passes as an argument to the view or the wildcard
+    // specified in the argument options.
     foreach ($this->_view_arguments as $field => $argument) {
-      // because some arguments arn't standard base arguments we need to do things differently
-      // so that the facet blocks behave. So any argument thats not part of a facet block
-      // we have its value copied into the path
-      // arguments that are a facet block argument will be processed differently
-      $path_part = $this->part_of_facet_block($argument) ? $this->argument_part($field) : $argument->argument;
+      // Check if the argument is configured to be populated by a facet block
+      // and if facet data for the argument is available.
+      if ($argument->options['facet_block'] && in_array($argument->field, array_keys($facets))) {
+        $path_part = $this->argument_part($argument->field, $facets);
+      }
+      // Otherwise, check if a views argument value is set for the argument and
+      // use that if available.
+      elseif (isset($argument->argument)) {
+        $path_part = $argument->argument;
+        // Remove from facets to prevent that values show up in more than one argument.
+        if (!empty($facets[$argument->field])) {
+          foreach ($facets[$argument->field] as $key => $facet) {
+            if ($facet['value'] == $argument->argument) {
+              unset($facets[$argument->field][$key]);
+            }
+          }
+        }
+      }
+      else {
+        $path_part = FALSE;
+      }
+
       if (!empty($path_part)) {
         $path_parts[$argument->position + 1] = $path_part;
         $wildcard_count = 0;
       }
+      // If neither a facet nor a views argument value is set, use the wildcard
+      // specified for the argument.
       else {
         $path_parts[$argument->position + 1] = $argument->options['wildcard'];
         $wildcard_count++;
       }
     }
+
     $arguments = explode('/', $this->_base_path);
     $path = '';
     foreach ($arguments as $arg) {
@@ -654,9 +680,12 @@ class apachesolr_views_query extends views_plugin_query implements Drupal_Solr_Q
    *
    * @return string the part of the url for Views that matches this facet value
    */
-  protected function argument_part($field) {
+  protected function argument_part($field, $facets = NULL) {
+  	   if (is_null($facets)) {
+      $facets = $this->_facets;
+      }
     $argument_path = '';
-    if (empty($this->_facets[$field])) {
+    if (empty($facets[$field])) {
       if ($field == 'text' && !empty($this->_query)) {
         //the search argument is special
         return $this->_query;
@@ -664,7 +693,7 @@ class apachesolr_views_query extends views_plugin_query implements Drupal_Solr_Q
         return '';
       }
     }
-    foreach ($this->_facets[$field] as $defintion) {
+   foreach ($facets[$field] as $defintion) {
       if (!$defintion['exclude']) {
         $argument_path .= ',' . $defintion['value'];
       }
@@ -679,22 +708,22 @@ class apachesolr_views_query extends views_plugin_query implements Drupal_Solr_Q
    * @return bool
    * Whether or not the provided argument could be in a facet block
    */
-  protected function part_of_facet_block($argument) {
-    foreach (apachesolr_get_enabled_facets() as $module => $module_facets) {
-      foreach($module_facets as $delta => $facet_field) {
-        $facet_arguments[] = $facet_field;
-      }
-    }
+ // protected function part_of_facet_block($argument) {
+ //   foreach (apachesolr_get_enabled_facets() as $module => $module_facets) {
+ //     foreach($module_facets as $delta => $facet_field) {
+ //       $facet_arguments[] = $facet_field;
+ //     }
+ //   }
 
     // Facets are IM_* where as argument are tid so this is a quick fix
-    if ((!empty($facet_arguments)) && ($argument->field == "tid")) return true;
+//    if ((!empty($facet_arguments)) && ($argument->field == "tid")) return true;
 
     // we use field instead of real_field
     // because we want these specific ones defined in
     // apachesolr_views.views.inc
-    return (in_array($argument->field, $facet_arguments));
-  }
-    
+//    return (in_array($argument->field, $facet_arguments));
+//  }
+//    
   /**
    * return any query string for use in the l function
    *
@@ -721,7 +750,6 @@ class apachesolr_views_query extends views_plugin_query implements Drupal_Solr_Q
     foreach ($this->_extra_query as $field => $value) {
       $query_values[$field] = $value;
     }
-    
     return $query_values;
   }
   
